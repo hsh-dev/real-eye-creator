@@ -34,13 +34,14 @@ class OptimizerWrapper:
 
 class CosineDecayWrapper:
     # constructor
-    def __init__(self, optimizer, max_lr, min_lr, n_epochs, n_cycles, decay_steps=None):
+    def __init__(self, optimizer, config, enable=True):
         self.optimizer = optimizer
-        self.epochs = n_epochs
-        self.cycles = n_cycles
-        self.max_lr = max_lr
-        self.min_lr = min_lr
-        self.decay_steps = decay_steps
+        self.epochs = config["epochs"]
+        self.cycles = config["cycle"]
+        self.max_lr = config["learning_rate"]
+        self.min_lr = config["min_learning_rate"]
+        self.decay_steps = config['decay_steps']
+        self.enable = enable
 
     # caculate learning rate for an epoch
     def cosine_annealing(self, epoch):
@@ -50,7 +51,7 @@ class CosineDecayWrapper:
 
     # calculate and set learning rate at the start of the epoch
     def get_lr(self, epoch):
-        if(epoch < self.decay_steps):
+        if(epoch < self.decay_steps) and self.enable:
             lr = self.cosine_annealing(epoch)
         else:
             lr = self.min_lr

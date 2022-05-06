@@ -129,32 +129,6 @@ class Trainer(object):
         bce = tf.keras.losses.BinaryCrossentropy(from_logits=False)
         bce_loss= bce(y_true, y_pred)
         return bce_loss
-    
-    def cal_acc(self, total_cm):
-        Precision = total_cm['tp'] / (total_cm['fp']+ total_cm['tp'])
-        Recall = total_cm['tp'] / (total_cm['tp'] + total_cm['fn'])
-        Accuracy = (total_cm['tp'] + total_cm['tn']) / (total_cm['tp'] + total_cm['fn'] + total_cm['fp'] + total_cm['tn'])
-        F1_s = 2 *( (Precision * Recall) / (Precision + Recall) )
-        return Accuracy, Precision, Recall, F1_s
-    
-    def custom_acc_(self, labels, model_outputs):
-        labels = tf.cast(labels, tf.float32)
-        model_outputs = tf.cast(model_outputs, tf.float32)
-        
-        model_outputs = tf.where( tf.less_equal( 0.5, model_outputs ), 1, 0 )
-        # model_outputs = tf.where( tf.less_equal( 0.5, model_outputs ), 1 * tf.ones_like( model_outputs ), model_outputs )
-        # model_outputs = tf.where( tf.greater( 0.5, model_outputs ), 0 * tf.ones_like( model_outputs ), model_outputs )
-        model_outputs = tf.reshape(model_outputs, labels.shape)
-        
-        labels = tf.where( tf.less_equal( 0.5, labels ), 1, 0 )
-        # labels = tf.where( tf.less_equal( 0.5, labels ), 1 * tf.ones_like( labels ), labels )
-        # labels = tf.where( tf.greater( 0.5, labels ), 0 * tf.ones_like( labels ), labels )
-        
-        # model_outputs = tf.cast(model_outputs, tf.int32)
-        # labels = tf.cast(labels, tf.int32)
-        
-        # cm = confusion_matrix(labels, model_outputs, labels=[0, 1])
-        # return [cm[0, 0], cm[0, 1], cm[1, 0], cm[1, 1]]
 
       
     ''' Train Functions '''
@@ -214,7 +188,7 @@ class Trainer(object):
 
         for step, sample in enumerate(dataset):
             self.total_step += 1
-            real_image, fake_base = sample
+            fake_base, real_image = sample
 
             # ===== Refine Generator first ===== #
             tmp = []
@@ -304,37 +278,6 @@ class Trainer(object):
         self.logs["discriminator_fake_loss"] = sum(dis_fake_losses)/len(dis_fake_losses)
 
 
-
-    def valid_loop(self):
-        """ Validation loop of the model"""
-        dataset = self.dataset_manager.get_validation_data(self.val_batch_size)
-        gen_losses = []
-        gen_loss_tmp = []
-
-        steps = len(dataset)
-        prev_time = time.time()
-
-        for step, sample in enumerate(dataset):
-            fake_base = sample
-
-            fake_generated = self.generator(fake_base, training=False)
-            fake_output = self.discriminator(fake_generated, training=False)
-            g_loss = self.custom_bce_loss(1, fake_output)
-            
-            gen_losses.append(g_loss)
-            tf.debugging.check_numerics(g_loss, 'generator loss is nan')
-            gen_loss_tmp.append(g_loss)
-
-            if (step+1) % 200 == 0:
-                self.print_step_valid(step+1, steps, gen_loss_tmp, prev_time)
-                sys.stdout.flush()
-                prev_time = time.time()
-                gen_loss_tmp.clear()
-
-        valid_loss = np.mean(gen_losses)
-        self.logs["valid_loss"] = valid_loss
-
-        return valid_loss
 
     ''' Save Functions '''
     def _save_model(self, epoch, best_ = None):

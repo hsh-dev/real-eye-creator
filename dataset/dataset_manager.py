@@ -19,9 +19,29 @@ import albumentations as A
 #(36, 60, 3)
 
 train_transform = A.Compose([
-    A.MotionBlur(blur_limit=10, p=0.5),
-    A.RandomBrightnessContrast(brightness_limit=0.4, contrast_limit=0.4, p=0.5),
+    A.Blur(always_apply=False, p=0.5, blur_limit=(3, 9)),
+    A.Downscale(always_apply=False, p=0.1, scale_min=0.7,
+                scale_max=0.99, interpolation=0),
+    A.ElasticTransform(always_apply=False, p=0.5, alpha=0.0, sigma=0.0, alpha_affine=35.5,
+                       interpolation=0, border_mode=0, value=(0, 0, 0), mask_value=None, approximate=False),
+    A.HueSaturationValue(always_apply=False, p=0.5, hue_shift_limit=(-20, 20),
+                         sat_shift_limit=(-30, 30), val_shift_limit=(-20, 20)),
+    A.ImageCompression(always_apply=False, p=1.0, quality_lower=52,
+                       quality_upper=100, compression_type=0),
+    A.JpegCompression(always_apply=False, p=1.0,
+                      quality_lower=49, quality_upper=100),
+    A.MotionBlur(always_apply=False, p=1.0, blur_limit=(3, 50)),
+    A.RGBShift(always_apply=False, p=1.0, r_shift_limit=(-10, 10),
+               g_shift_limit=(-10, 10), b_shift_limit=(-10, 10)),
+    A.RandomBrightnessContrast(always_apply=False, p=1.0, brightness_limit=(-0.3, 0.3),
+                               contrast_limit=(-0.2, 0.2), brightness_by_max=True),
+    A.RandomFog(always_apply=False, p=1.0, fog_coef_lower=0.0,
+                fog_coef_upper=0.2, alpha_coef=0.13),
+    A.ShiftScaleRotate(always_apply=False, p=1.0, shift_limit=(-0.1, 0.1), scale_limit=(-0.1, 0.1),
+                       rotate_limit=(-30, 30), interpolation=0, border_mode=1, value=(0, 0, 0), mask_value=None)
+
 ])
+
 
 def aug_fn(image):
     data = {"image": image}
@@ -29,15 +49,11 @@ def aug_fn(image):
     aug_img = aug_data["image"]
     return aug_img
 
+
 @tf.function(input_signature=[tf.TensorSpec((36, 60, 3), tf.uint8)])
 def _add_random_noise_each(image):
     aug_img = tf.numpy_function(func=aug_fn, inp=[image], Tout=tf.uint8)
     return aug_img
-
-# def load_one_flipped_pair(l_path, r_path, size):
-#     l_img = read_rgb_image(l_path, size, flip=False)
-#     r_img = read_rgb_image(r_path, size, flip=True)
-#     return l_img, r_img
 
 
 class DatasetManager(object):
@@ -137,32 +153,20 @@ class DatasetManager(object):
         return opened_path_list, closed_path_list
 
 
-    def get_data(self, dataset, training, batch_size, type = None):
-        if type == 'train':
-            all_real = np.array(
-                list(map(lambda x: self.read_rgb_image(x), dataset['real'])))
-            all_fake = np.array(
-                list(map(lambda x: self.read_rgb_image(x), dataset['fake'])))
+    def get_data(self, dataset, training, batch_size):
+        all_fake = np.array(list(map(lambda x: self.read_rgb_image(x), dataset['fake'])))
+        all_real = np.array(list(map(lambda x : self.read_rgb_image(x), dataset['real'])))
 
-            all_real, all_fake = shuffle(all_real, all_fake)
-            dataset = tf.data.Dataset.from_tensor_slices((all_real, all_fake))
+        all_fake, all_real = shuffle(all_fake, all_real)
+        dataset = tf.data.Dataset.from_tensor_slices((all_fake, all_real))
 
-            dataset = dataset.map(
-                lambda x, y: 
-                (tf.image.convert_image_dtype(x, dtype=tf.float32), 
-                tf.image.convert_image_dtype(y, dtype=tf.float32))
-            ).batch(batch_size)
 
-        else:
-            all_fake = np.array(
-                list(map(lambda x: self.read_rgb_image(x), dataset['fake'])))
-            
-            all_fake = shuffle(all_fake)
-            dataset = tf.data.Dataset.from_tensor_slices(all_fake)
-            dataset = dataset.map(
-                lambda x:
-                tf.image.convert_image_dtype(x, dtype=tf.float32)
-            ).batch(batch_size)
+        dataset = dataset.map(lambda x,y : (
+            tf.image.convert_image_dtype(
+                x, dtype=tf.float32),
+            tf.image.convert_image_dtype(
+                y, dtype=tf.float32)
+        )).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset
         
@@ -176,7 +180,7 @@ class DatasetManager(object):
             print("ERROR: can't read " + img_path)
             return None
         else:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
             if flip:
                 img = cv2.flip(img, 1)
@@ -188,13 +192,15 @@ class DatasetManager(object):
     '''Data API functions'''
     def get_training_data(self, batch_size):
         subject_list = self.train_set.keys()
-        return self.get_data(self.train_set, False, batch_size, 'train')
+        return self.get_data(self.train_set, False, batch_size)
     
     def get_validation_data(self, batch_size):
         subject_list = self.valid_set.keys()
-        return self.get_data(self.valid_set, False, batch_size, 'valid')
+        return self.get_data(self.valid_set, False, batch_size)
     
     def get_test_data(self, batch_size):
         subject_list = self.test_set.keys()
         return self.get_data(self.test_set, False, batch_size)
 
+    def get_one_training_data(self):
+        return self.get_data(self.train_set, False, 1)

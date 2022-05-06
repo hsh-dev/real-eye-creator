@@ -130,21 +130,29 @@ class RE_Generator(Model):
 
 
 class Resnet_Block(Model):
+    '''
+    Resnet - Full pre-activation
+    '''
     def __init__(self):
         super().__init__()
-        self.conv1 = Conv2D(64, 3, 1, 'same')
+        self.bn1 = BatchNormalization()
         self.relu1 = ReLU()
-        self.conv2 = Conv2D(64, 3, 1, 'same')
+        self.conv1 = Conv2D(64, 3, 1, 'same')
+        self.bn2 = BatchNormalization()
         self.relu2 = ReLU()
+        self.conv2 = Conv2D(64, 3, 1, 'same')
+
 
     def call(self, x):
         shortcut = x
-        x = self.conv1(x)
+        x = self.bn1(x)
         x = self.relu1(x)
+        x = self.conv1(x)
+        x = self.bn2(x)
+        x = self.relu2(x)
         x = self.conv2(x)
 
-        x = tf.add(x, shortcut)
-        out = self.relu2(x)
+        out = tf.add(x, shortcut)
 
         return out
 
@@ -159,7 +167,7 @@ class Generator(Model):
 
     def call(self, x):
         x = self.conv1(x)
-
+        
         for i in range(4):
             x = self.resblock(x)
 
@@ -170,50 +178,53 @@ class Generator(Model):
 class Discriminator(Model):
     def __init__(self):
         super().__init__()
-        # 36x60x3 -> 18x30x96
+        # 36x60x3 -> 36x60x128
+        self.initial_conv = Sequential([
+            Conv2D(96, 3, 1, 'same')
+        ])
+
+        # 36x60x128 -> 18x30x96
         self.conv1 = Sequential([
-            Conv2D(96, 3, 2, 'same'),
             BatchNormalization(),
-            ReLU()
+            LeakyReLU(0.2),
+            Conv2D(96, 3, 2, 'same')
         ])
 
         # 18x30x96 -> 9x15x64
         self.conv2 = Sequential([
+            BatchNormalization(),
+            LeakyReLU(0.2),
             Conv2D(64, 3, 2, 'same'),
-            BatchNormalization()
         ])
 
         # 9x15x64 -> 4x7x64
         self.maxpool = MaxPool2D(3, 2, 'valid')
 
-        # 4x7x64 -> 2x5x32
+        # 4x7x64 -> 4x7x16
         self.conv3 = Sequential([
-            Conv2D(32, 3, 1, 'valid'),
             BatchNormalization(),
-            ReLU()
+            LeakyReLU(0.2),
+            Conv2D(16, 1, 1, 'valid')
         ])
 
-        # 2x5x32 -> 2x5x1
+        # 4x7x16 -> 28x1
         self.conv4 = Sequential([
-            Conv2D(1, 1, 1, 'same'),
-            BatchNormalization()
-        ])
-
-        # 2x5x1 -> 1
-        self.outlayer = Sequential([
-            Flatten(),
             BatchNormalization(),
-            Dense(1, 'sigmoid')
+            LeakyReLU(0.2),
+            Conv2D(1, 1, 1, 'same'),
+            Flatten(),
+            Dense(28, 'sigmoid')
         ])
 
 
     def call(self, x):
+        x = self.initial_conv(x)
         x = self.conv1(x)
         x = self.conv2(x)
+
         x = self.maxpool(x)
 
         x = self.conv3(x)
         x = self.conv4(x)
-        x = self.outlayer(x)
 
         return x

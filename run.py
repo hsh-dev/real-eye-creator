@@ -5,7 +5,8 @@ import neptune.new as neptune
 
 from utils.dir import check_make_dir
 from dataset.dataset_manager import DatasetManager
-from trainer.trainer import Trainer
+# from trainer.trainer import Trainer
+from trainer.cyclegan_trainer import Cycle_Trainer
 from models.real_eye_gan import RE_Discriminator, RE_Generator, Generator, Discriminator
 
 
@@ -16,7 +17,7 @@ if __name__ == "__main__":
     config['save_path'] = './output'
 
     ## model hyperparameter
-    config['batch_size'] = 8
+    config['batch_size'] = 1
     config['val_batch_size'] = 8
     config['input_size'] = (60, 36)
 
@@ -80,9 +81,13 @@ if __name__ == "__main__":
     ## Load dataset
     dataset_manager = DatasetManager(config)
     
-    d_model = Discriminator()
-    g_model = Generator()
-    trainer = Trainer(d_model, g_model, dataset_manager,
+    d_model_1 = Discriminator()
+    d_model_2 = Discriminator()
+
+    g_model_1 = Generator()
+    g_model_2 = Generator()
+
+    trainer = Cycle_Trainer(d_model_1, d_model_2, g_model_1, g_model_2, dataset_manager,
                       config, args.enable_log, neptune_callback)
     
     # dataset = trainer.dataset_manager.get_training_data(10)
