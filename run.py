@@ -24,13 +24,13 @@ if __name__ == "__main__":
     config['epochs'] = 800
     config['cycle'] = 20
     config['decay_steps'] = 400
-    config['learning_rate'] = 1e-3
+    config['learning_rate'] = 3e-4
     config['min_learning_rate'] = 1e-4
 
     ## Dataset path
-    config['300vw_blink_path'] = '/mnt/ssd-2tb/300vw_blink'
-    config['rt_bene_path'] = '/mnt/ssd-2tb/rt_bene'
-    config['unity_eyes_path'] = '/mnt/ssd-2tb/unity_dataset'
+    config['300vw_blink_path'] = '/mnt/ssd1/blink_dataset/300vw_blink'
+    config['rt_bene_path'] = '/mnt/ssd1/blink_dataset/rt_bene'
+    config['unity_eyes_path'] = '/mnt/ssd1/blink_dataset/unity_dataset'
     
 
     tf.debugging.set_log_device_placement(False)
@@ -90,15 +90,6 @@ if __name__ == "__main__":
     trainer = Cycle_Trainer(d_model_1, d_model_2, g_model_1, g_model_2, dataset_manager,
                       config, args.enable_log, neptune_callback)
     
-    # dataset = trainer.dataset_manager.get_training_data(10)
-    # for step, sample in enumerate(dataset):
-    #     real_image, fake_base = sample
-        
-    #     fake_generated = trainer.discriminator(fake_base, training=True)
-
-    #     print(fake_generated)
-    #     exit()
-
     trainer.train_loop()
 
 

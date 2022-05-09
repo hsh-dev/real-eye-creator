@@ -5,7 +5,7 @@ Unity Eyes의 synthetic data를 통해 realistic eye data를 만들어내고 실
 Learning from Simulated and Unsupervised Images through Adversial Training (2017)
 
 # 아키텍쳐
-SimGAN 적용
+SimGAN 적용 -> CycleGAN 적용
 
 
 

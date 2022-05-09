@@ -56,10 +56,10 @@ class Rt_Loader(DataLoader):
 
                     if img_label == 0.5:
                         continue
-                    if img_label > 0.5:
-                        opened_path_list.append(img_path)
-                    elif img_label < 0.5:
+                    if img_label == 1.0:
                         closed_path_list.append(img_path)
+                    elif img_label == 0.0:
+                        opened_path_list.append(img_path)
 
         return opened_path_list, closed_path_list
 
