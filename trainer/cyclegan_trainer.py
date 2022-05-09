@@ -6,7 +6,7 @@ import time
 import os
 import cv2
 
-from callbacks.neptune_callback import NeptuneCallback
+from callbacks.neptune_callback import Cycle_NeptuneCallback
 from utils.dir import check_make_dir
 from utils.tools import tf_shuffle_axis
 from trainer.optimizer import CosineDecayWrapper
@@ -51,7 +51,7 @@ class Cycle_Trainer(object):
 
     ''' Initialize Functions '''   
     def _init_callbacks(self, call_back):
-        self.neptune_callback = NeptuneCallback(call_back)
+        self.neptune_callback = Cycle_NeptuneCallback(call_back)
         self.logs = {}
         
     def _init_optimizer(self):
