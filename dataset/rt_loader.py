@@ -7,17 +7,24 @@ class Rt_Loader(DataLoader):
     def __init__(self, config):
         super().__init__(config)
         self.name = "rt_bene"
-        self.dataset_path = config['rt_bene_path']
+        if config.get("rt_bene_path") is not None:
+            self.dataset_path = config['rt_bene_path']
+        if config.get("test_rt_bene_path") is not None:
+            self.testset_path = config["test_rt_bene_path"]
         self.input_size = config['input_size']
 
-    def get_data_path(self):
+    def get_raw_data_path(self):
+        '''
+        Raw RT_BENE
+        '''
         is_exist = self._is_data_exist(self.name, self.dataset_path)
         
         opened_path = []
         closed_path = []
+        uncertain_path = []
 
         if not is_exist:
-            return opened_path, closed_path
+            return opened_path, closed_path, uncertain_path
         else:
             print("Collecting {} dataset...".format(self.name))
             opened_path, closed_path = self.read_csv()

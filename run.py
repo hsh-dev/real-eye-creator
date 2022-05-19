@@ -8,31 +8,9 @@ from dataset.dataset_manager import DatasetManager
 # from trainer.trainer import Trainer
 from trainer.cyclegan_trainer import Cycle_Trainer
 from models.real_eye_gan import RE_Discriminator, RE_Generator, Generator, Discriminator
-
+from config import CONFIG
 
 if __name__ == "__main__":    
-    config = {}
-
-    ## save, log
-    config['save_path'] = './output'
-
-    ## model hyperparameter
-    config['batch_size'] = 1
-    config['val_batch_size'] = 8
-    config['input_size'] = (60, 36)
-
-    config['epochs'] = 800
-    config['cycle'] = 20
-    config['decay_steps'] = 400
-    config['learning_rate'] = 3e-4
-    config['min_learning_rate'] = 1e-4
-
-    ## Dataset path
-    config['300vw_blink_path'] = '/mnt/ssd1/blink_dataset/300vw_blink'
-    config['rt_bene_path'] = '/mnt/ssd1/blink_dataset/rt_bene'
-    config['unity_eyes_path'] = '/mnt/ssd1/blink_dataset/unity_dataset'
-    
-
     tf.debugging.set_log_device_placement(False)
     gpus = tf.config.experimental.list_physical_devices("GPU")
     if gpus:
@@ -59,8 +37,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     output_path = os.path.abspath(args.save_path)
     check_make_dir(output_path)
-    config["save_path"] = os.path.join(args.save_path, args.experiment_name)
-    check_make_dir(config["save_path"])
+    CONFIG["save_path"] = os.path.join(args.save_path, args.experiment_name)
+    check_make_dir(CONFIG["save_path"])
 
     neptune_callback = None
     if args.enable_log:
@@ -75,11 +53,11 @@ if __name__ == "__main__":
                 "./models/*"
             ]
         )
-        neptune_callback["parameters"] = config
+        neptune_callback["parameters"] = CONFIG
 
 
     ## Load dataset
-    dataset_manager = DatasetManager(config)
+    dataset_manager = DatasetManager(CONFIG)
     
     d_model_1 = Discriminator()
     d_model_2 = Discriminator()
@@ -88,7 +66,7 @@ if __name__ == "__main__":
     g_model_2 = Generator()
 
     trainer = Cycle_Trainer(d_model_1, d_model_2, g_model_1, g_model_2, dataset_manager,
-                      config, args.enable_log, neptune_callback)
+                      CONFIG, args.enable_log, neptune_callback)
     
     trainer.train_loop()
 

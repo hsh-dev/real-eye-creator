@@ -22,7 +22,7 @@ class Cycle_Trainer(object):
         self.discriminator_y = d_model_2
 
         self.c_lambda = 10
-        self.i_lambda = 10
+        self.i_lambda = 1
 
         self.save_path = config['save_path']
         self.batch_size = config['batch_size']
@@ -227,7 +227,7 @@ class Cycle_Trainer(object):
         discriminator_x_gradients = tape.gradient(dis_x_loss, self.discriminator_x.trainable_variables)
         discriminator_y_gradients = tape.gradient(dis_y_loss, self.discriminator_y.trainable_variables)
         
-        if (step % 40) < 20:
+        if (step % 40) < 5:
             self._apply_gradients(generator_g_gradients, generator_f_gradients)
         else:
             self._apply_gradients(generator_g_gradients, generator_f_gradients, discriminator_x_gradients, discriminator_y_gradients)
