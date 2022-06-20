@@ -17,11 +17,20 @@ class Gan_DatasetManager(DatasetManager):
         self.data_set = {}
         self.gan_dataset_initialize()
         
+        
     def gan_dataset_initialize(self):
         '''
         Initializing dataset, make train, valid, test set \n
         Split test set and train/validation set
         '''
+        
+        image_data_list = {}
+        image_data_list["opened"] = []
+        image_data_list["closed"] = []
+        image_data_list["uncertain"] = []
+        domain_data_list = {}
+        domain_data_list["opened"] = []
+        domain_data_list["closed"] = []
         
         for domain in self.train_set_list:
             loader = None
@@ -31,24 +40,16 @@ class Gan_DatasetManager(DatasetManager):
                 loader = self.rt_loader
             elif domain == "golflab":
                 loader = self.golflab_loader
-            # self.vw_loader
-            # self.golflab_loader
-
-            loader_list = []
-            loader_list.append(loader)
-            opened_data, closed_data, uncertain_data = [], [], []
-            if domain == "golflab":
-                opened_data, closed_data, uncertain_data = self.load_data(loader_list, 'train')
-            else:
-                opened_data, closed_data, uncertain_data = self.load_data(loader_list, 'train')
-        
-            self.concatenate_data(opened_data, closed_data, [], domain)
+                
+            image_data_list, domain_data_list = self._load_data(image_data_list, domain_data_list, loader, "train")
         
             print("-------------------------------------") 
             print("[*] Domain : {}".format(domain))
             print("[*] Data Number : {}".format(len(self.data_set[domain]['image'])))
             print("-------------------------------------")
     
+            image_data_list["opened"], domain_data_list["opened"] = shuffle(image_data_list["opened"], domain_data_list["opened"], random_state=20)
+            image_data_list["closed"], domain_data_list["closed"] = shuffle(image_data_list["closed"], domain_data_list["closed"], random_state=20)
     
     def concatenate_data(self, opened_data, closed_data, uncertain_data, domain):
         '''

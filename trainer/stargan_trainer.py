@@ -12,8 +12,8 @@ from sklearn.metrics import confusion_matrix
 from utils.dir import check_make_dir
 from trainer.optimizer import CosineDecayWrapper
 
-from gan_library.gan_callback.neptune_callback import Star_NeptuneCallback
-from gan_library.gan_trainer.stargan_loss import classification_loss, state_loss, identity_loss, adversarial_loss
+from callbacks.neptune_callback import Star_NeptuneCallback
+from trainer.stargan_loss import classification_loss, state_loss, identity_loss, adversarial_loss
 
 class Star_Trainer(object):
     def __init__(self, d_model, g_model, dataset_manager, config, enable_log = False, call_back = None):
@@ -205,6 +205,7 @@ class Star_Trainer(object):
                 total_cm[key] += cm_list[i]
 
             if (step+1) % 20 == 0:
+                self.save_image(real_img, fake_img, self.epoch, step)
                 self.print_step(step+1, steps, 
                                 gen_loss_tmp, 
                                 dis_loss_tmp , prev_time)
@@ -247,33 +248,34 @@ class Star_Trainer(object):
 
 
     ''' Image Show '''
-    def save_image(self, real_x, real_y, epoch, step):
+    def save_image(self, real_img, fake_img, epoch, step):
         # dataset = self.dataset_manager.get_one_training_data()
         tag = "ep_" + str(epoch) + "_step_" + str(step)
         save_image_path = os.path.join(self.save_path, "image")
         check_make_dir(save_image_path)
 
-        generated = self.generator_g(real_x)
+        # generated = self.generator_g(real_x)
 
         # for step, sample in enumerate(dataset):
-        real_x = np.squeeze(real_x.numpy(), axis = 0)*255
-        fake_image_name = os.path.join(save_image_path, tag + "_fake_sample.jpg")
-        real_x = cv2.cvtColor(real_x, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(fake_image_name, real_x)
-
-        real_y = np.squeeze(real_y.numpy(), axis=0)*255
+        real_img = np.squeeze(real_img.numpy(), axis = 0)*255
         real_image_name = os.path.join(save_image_path, tag + "_real_sample.jpg")
-        real_y = cv2.cvtColor(real_y, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(real_image_name, real_y)
+        real_img = cv2.cvtColor(real_img, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(real_image_name, real_img)
+        
+        fake_img = np.squeeze(fake_img.numpy(), axis=0)*255
+        fake_image_name = os.path.join(save_image_path, tag + "_fake_sample.jpg")
+        fake_img = cv2.cvtColor(fake_img, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(fake_image_name, fake_img)
 
-        generated = np.squeeze(generated.numpy(), axis = 0)*255
-        generated_image_name = os.path.join(save_image_path, tag + "_generated_sample.jpg")
-        generated = cv2.cvtColor(generated, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(generated_image_name, generated)
 
-        self.logs["fake_image"] = fake_image_name
-        self.logs["real_image"] = real_image_name
-        self.logs["generated_image"] = generated_image_name
+        # generated = np.squeeze(generated.numpy(), axis = 0)*255
+        # generated_image_name = os.path.join(save_image_path, tag + "_generated_sample.jpg")
+        # generated = cv2.cvtColor(generated, cv2.COLOR_RGB2BGR)
+        # cv2.imwrite(generated_image_name, generated)
+
+        self.logs["fake_image"] = fake_img
+        self.logs["real_image"] = real_img
+        # self.logs["generated_image"] = generated_image_name
 
 
     ''' Save Functions '''

@@ -66,3 +66,45 @@ class Cycle_NeptuneCallback(Callback):
         if logs.get["generated_image"] is not None:
             self.neptune["image/generated_image"].upload(logs["generated_image"])
     
+    
+class Star_NeptuneCallback(Callback):
+    def __init__(self, neptune_instance):
+        super(Star_NeptuneCallback, self).__init__()
+        self.neptune = neptune_instance
+
+    def on_epoch_end(self, epoch, logs=None, lr=None):
+        if logs.get("generator_loss") is not None:
+            self.neptune["train/gen_loss"].log(
+                logs["generator_loss"])
+
+        if logs.get("discriminator_loss") is not None:
+            self.neptune["train/dis_loss"].log(
+                logs["discriminator_loss"])
+
+        if logs.get("learning_rate") is not None:
+            self.neptune["train/learning_rate"].log(
+                logs["learning_rate"])
+            
+        if logs.get("total_train_accuracy") is not None:
+            self.neptune["train/accuracy"].log(logs["total_train_accuracy"])        
+        if logs.get("total_train_precision") is not None:
+            self.neptune["train/precision"].log(logs["total_train_precision"])
+        if logs.get("total_train_recall") is not None:
+            self.neptune["train/recall"].log(logs["total_train_recall"])
+        if logs.get("total_train_f1_score") is not None:
+            self.neptune["train/f1_score"].log(logs["total_train_f1_score"])       
+
+
+
+    def on_batch_end(self, step, logs):
+        if logs.get["fake_image"] is not None:
+            self.neptune["image/fake_image"].upload(logs["fake_image"])
+
+
+        if logs.get["real_image"] is not None:
+            self.neptune["image/real_image"].upload(logs["real_image"])
+    
+
+        if logs.get["generated_image"] is not None:
+            self.neptune["image/generated_image"].upload(logs["generated_image"])
+    

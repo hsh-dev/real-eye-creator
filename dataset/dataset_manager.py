@@ -1,47 +1,27 @@
-import csv
-import os
-import random
-from this import d
 import cv2
-import glob
 import numpy as np
 from sklearn.utils import shuffle
 import tensorflow as tf
+import random
 # from transforms import train_transform
-from tqdm import tqdm
 
 from dataset.unity_loader import Unity_Loader
 from dataset.vw_loader import Vw_Loader
 from dataset.rt_loader import Rt_Loader
 from dataset.golflab_loader import Golflab_Loader
+
 import albumentations as A
 
 #(36, 60, 3)
 
 train_transform = A.Compose([
+    A.ISONoise(always_apply=False, p=0.3, intensity=(0.3, 0.55), color_shift=(0.2, 0.4)),
     A.Blur(always_apply=False, p=0.5, blur_limit=(3, 9)),
-    A.Downscale(always_apply=False, p=0.1, scale_min=0.7,
-                scale_max=0.99, interpolation=0),
-    A.ElasticTransform(always_apply=False, p=0.5, alpha=0.0, sigma=0.0, alpha_affine=35.5,
-                       interpolation=0, border_mode=0, value=(0, 0, 0), mask_value=None, approximate=False),
-    A.HueSaturationValue(always_apply=False, p=0.5, hue_shift_limit=(-20, 20),
-                         sat_shift_limit=(-30, 30), val_shift_limit=(-20, 20)),
-    A.ImageCompression(always_apply=False, p=1.0, quality_lower=52,
-                       quality_upper=100, compression_type=0),
-    A.JpegCompression(always_apply=False, p=1.0,
-                      quality_lower=49, quality_upper=100),
-    A.MotionBlur(always_apply=False, p=1.0, blur_limit=(3, 50)),
-    A.RGBShift(always_apply=False, p=1.0, r_shift_limit=(-10, 10),
-               g_shift_limit=(-10, 10), b_shift_limit=(-10, 10)),
-    A.RandomBrightnessContrast(always_apply=False, p=1.0, brightness_limit=(-0.3, 0.3),
-                               contrast_limit=(-0.2, 0.2), brightness_by_max=True),
-    A.RandomFog(always_apply=False, p=1.0, fog_coef_lower=0.0,
-                fog_coef_upper=0.2, alpha_coef=0.13),
-    A.ShiftScaleRotate(always_apply=False, p=1.0, shift_limit=(-0.1, 0.1), scale_limit=(-0.1, 0.1),
-                       rotate_limit=(-30, 30), interpolation=0, border_mode=1, value=(0, 0, 0), mask_value=None)
-
+    A.ImageCompression(always_apply=False, p=1.0, quality_lower=52,quality_upper=100, compression_type=0),
+    A.RandomBrightnessContrast(always_apply=False, p=0.5, brightness_limit=(-0.8, 0.2), 
+                contrast_limit=(-0.8, 0.2), brightness_by_max=True),
+    A.ShiftScaleRotate(always_apply=False, p=0.5, shift_limit=(-0.1, 0.1), scale_limit=(-0.1, 0.1))
 ])
-
 
 def aug_fn(image):
     data = {"image": image}
@@ -49,158 +29,231 @@ def aug_fn(image):
     aug_img = aug_data["image"]
     return aug_img
 
-
 @tf.function(input_signature=[tf.TensorSpec((36, 60, 3), tf.uint8)])
 def _add_random_noise_each(image):
     aug_img = tf.numpy_function(func=aug_fn, inp=[image], Tout=tf.uint8)
     return aug_img
 
 
+def image_normalize(image):
+    image_norm = cv2.normalize(image, None, 50, 200, cv2.NORM_MINMAX)
+    
+    save_image = cv2.cvtColor(image_norm, cv2.COLOR_RGB2BGR)
+    # cv2.imwrite('./output/save_image.jpg', save_image)
+    
+    return image_norm
+
+
 class DatasetManager(object):
-    def __init__(self, config, test_split = False, dataset_size=None):
+    def __init__(self, config, finetune = False, dataset_initialize = True):
         '''
         dataset_size (None/int) : use whole dataset / use partial dataset
         '''
         self.config = config
         self.input_size = config['input_size']
-
+        
+        # Domain ID
+        # RT_BENE : 0
+        # Golflab : 1
+        # UnityEyes : 2
+        # 300vw : 3
+        
+        
         # self.subjects = {}
         self.train_set = {}
         self.valid_set = {}
         self.test_set = {}
         
+        self.finetune = finetune
         self.is_partial = False
         self.size = None
-        
-        if dataset_size is not None:
-            self.is_partial = True
-            self.size = dataset_size
 
+        # self.config['golflab_test_subject'] = ['1','2','3','4','5','6','7','8','9','10','11','12','13']
         self.vw_loader = Vw_Loader(self.config)
         self.unity_loader = Unity_Loader(self.config)
         self.rt_loader = Rt_Loader(self.config)
         self.golflab_loader = Golflab_Loader(self.config)
         
-        self.dataset_initialize()
-        # self.closed_dataset_initialize()
+        if dataset_initialize:
+            if not self.finetune:            
+                self.dataset_initialize()
+            else:
+                self.golflab_finetuning_initialize()
+                
 
     def dataset_initialize(self):
         '''
-        Initializing dataset, make train, valid, test set \n
-        Split test set and train/validation set
+        Initializing dataset, make train, valid, test set
         '''
-        fake_loader_list = [
-            self.unity_loader
-        ]
+        loader_list = []
+        if "rt_bene" in self.config["train_dataset_list"]:
+            loader_list.append(self.rt_loader)
+        if "golflab" in self.config["train_dataset_list"]:
+            loader_list.append(self.golflab_loader)
+        if "unity_eyes" in self.config["train_dataset_list"]:
+            loader_list.append(self.unity_loader)
+        if "300vw_blink" in self.config["train_dataset_list"]:
+            loader_list.append(self.vw_loader)
         
-        real_loader_list = [
+        test_loader_list = []
+        if "rt_bene" in self.config["test_dataset_list"]:
+            test_loader_list.append(self.rt_loader)
+        if "golflab" in self.config["test_dataset_list"]:
+            test_loader_list.append(self.golflab_loader)
+        if "unity_eyes" in  self.config["test_dataset_list"]:
+            test_loader_list.append(self.unity_loader)
+        if "300vw_blink" in self.config["test_dataset_list"]:
+            test_loader_list.append(self.vw_loader)
+        
+        image, domain = self.load_data(loader_list = loader_list, type = 'train')
+        test_image, test_domain = self.load_data(loader_list = test_loader_list, type = 'test')
+        
+        train_open_length = int(len(image["opened"])*0.8)
+        train_close_length = int(len(image["closed"])*0.8)
+        
+        train_image = {}
+        valid_image = {}
+        train_domain = {}
+        valid_domain = {}
+        
+        train_image["opened"] = image["opened"][:train_open_length]
+        train_domain["opened"] = domain["opened"][:train_open_length]
+        valid_image["opened"] = image["opened"][train_open_length:]
+        valid_domain["opened"] = domain["opened"][train_open_length:]
+                
+        train_image["closed"] = image["closed"][:train_close_length]
+        train_domain["closed"] = domain["closed"][:train_close_length]
+        valid_image["closed"] = image["closed"][train_close_length:]
+        valid_domain["closed"] = domain["closed"][train_close_length:]
+
+        self.concatenate_data(train_image, train_domain, 'train')
+        self.concatenate_data(valid_image, valid_domain, 'valid')
+        self.concatenate_data(test_image, test_domain, 'test')
+
+
+    def golflab_finetuning_initialize(self):
+        '''
+        Initializing Golflab Finetuning
+        '''
+        loader_list = [
             self.golflab_loader
         ]
-        
-        fake_opened_path, fake_closed_path, fake_uncertain_path = self.load_data_path(fake_loader_list, test = False)
-        real_opened_path, real_closed_path, real_uncertain_path = self.load_data_path(real_loader_list, test = True)
-        
-        train_length = min(len(fake_opened_path), len(real_opened_path))
-        
-        fake_opened_path = fake_opened_path[:train_length]
-        real_opened_path = real_opened_path[:train_length]
-        
-        self.concatenate_path(fake_opened_path, [], [], False)
-        self.concatenate_path(real_opened_path, [], [], True)
-        
-        print("-------------------------------------") 
-        print("[*] Train Real Set : {}".format(len(self.train_set['real'])))
-        print("[*] Train Fake Set : {}".format(len(self.train_set['fake'])))
-        print("-------------------------------------")
 
-    def closed_dataset_initialize(self):
-        '''
-        Initializing dataset, make train, valid, test set \n
-        Split test set and train/validation set
-        '''
-        fake_loader_list = [
-            self.unity_loader
-        ]
-        
-        real_loader_list = [
-            self.golflab_loader
-        ]
-        
-        fake_opened_path, fake_closed_path, fake_uncertain_path = self.load_data_path(fake_loader_list, test = False)
-        real_opened_path, real_closed_path, real_uncertain_path = self.load_data_path(real_loader_list, test = True)
-        
-        train_length = min(len(fake_closed_path), len(real_closed_path))
-        
-        fake_closed_path = fake_closed_path[:train_length]
-        real_closed_path = real_closed_path[:train_length]
-        
-        self.concatenate_path(fake_closed_path, [], [], False)
-        self.concatenate_path(real_closed_path, [], [], True)
-        
-        print("-------------------------------------") 
-        print("[*] Train Real Set : {}".format(len(self.train_set['real'])))
-        print("[*] Train Fake Set : {}".format(len(self.train_set['fake'])))
-        print("-------------------------------------")
+        train_image, train_domain = self.load_data(loader_list = loader_list, type = "train")
+        valid_image, valid_domain = self.load_data(loader_list = loader_list, type = "valid")
+        test_image, test_domain = self.load_data(loader_list = loader_list, type = "test")
 
+        self.concatenate_data(train_image, train_domain, 'train')
+        self.concatenate_data(valid_image, valid_domain, 'valid')
+        self.concatenate_data(test_image, test_domain, 'test')
 
+    
     ''' Load Function '''
-    def load_data_path(self, loader_list, test = False):
+    def load_data(self, loader_list, type):
         '''
-        Load path from Loader List
+        Load data from Loader List
         '''
-        opened_path_list = []
-        closed_path_list = []
-        uncertain_path_list = []
+        image_data_list = {}
+        image_data_list["opened"] = []
+        image_data_list["closed"] = []
+        image_data_list["uncertain"] = []
+        domain_data_list = {}
+        domain_data_list["opened"] = []
+        domain_data_list["closed"] = []
 
         for loader in loader_list:
-            opened_path_list , closed_path_list, uncertain_path_list = self._load_data_path(opened_path_list, closed_path_list, uncertain_path_list, loader, test)
+            image_data_list, domain_data_list = self._load_data(image_data_list, domain_data_list, loader, type)
+        
+        data_type = type
+        image_data_list["opened"], domain_data_list["opened"] = shuffle(image_data_list["opened"], domain_data_list["opened"], random_state=20)
+        image_data_list["closed"], domain_data_list["closed"] = shuffle(image_data_list["closed"], domain_data_list["closed"], random_state=20)
         
         print("-------------------------------------")
-        print("[*] Total Opened Size : {}".format(len(opened_path_list)))
-        print("[*] Total Closed Size : {}".format(len(closed_path_list)))
-        print("[*] Total Uncertain Size : {}".format(len(uncertain_path_list)))
-        print("-------------------------------------")
+        print("----  LOAD ALL {} DATA!!  ------".format(data_type))
+        print("[*] Total Opened Size : {}".format(len(image_data_list["opened"])))
+        print("[*] Total Closed Size : {}".format(len(image_data_list["closed"])))
+        print("[*] Total Uncertain Size : {}".format(len(image_data_list["uncertain"])))
+        print("-------------------------------------\n")
 
-        return opened_path_list, closed_path_list, uncertain_path_list
+        return image_data_list, domain_data_list
 
-    def _load_data_path(self, opened, closed, uncertain, loader, test = False):
-        opened_set, closed_set, uncertain_set = loader.get_data_path(test)
-        opened.extend(opened_set)
-        closed.extend(closed_set)
-        uncertain.extend(uncertain_set)
-        return opened, closed, uncertain
+    def _load_data(self, image_data, domain_data, loader, type):
+        opened_set, closed_set, uncertain_set, domain_set = loader.get_data(type)
+        image_data["opened"].extend(opened_set)
+        image_data["closed"].extend(closed_set)
+        image_data["uncertain"].extend(uncertain_set)
+        domain_data["opened"].extend(domain_set["opened"])
+        domain_data["closed"].extend(domain_set["closed"])
+        return image_data, domain_data
     
     
-    def concatenate_path(self, opened_path, closed_path, uncertain_path, real = False):
+    def concatenate_data(self, image, domain, type):
         '''
         Initialize self train/valid test set by concatenating parameter
         '''
-        opened_path = shuffle(opened_path, random_state = 20)
-
-        if not real:
-            self.train_set['fake'] = opened_path
-        else:
-            self.train_set['real'] = opened_path
-
-
-
-    def get_data(self, dataset, training, batch_size):
-        all_fake = np.array(list(map(lambda x: self.read_rgb_image(x), dataset['fake'])))
-        all_real = np.array(list(map(lambda x : self.read_rgb_image(x), dataset['real'])))
-
-        all_fake, all_real = shuffle(all_fake, all_real)
-        dataset = tf.data.Dataset.from_tensor_slices((all_fake, all_real))
-
-
-        dataset = dataset.map(lambda x,y : (
-            tf.image.convert_image_dtype(
-                x, dtype=tf.float32),
-            tf.image.convert_image_dtype(
-                y, dtype=tf.float32)
-        )).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
-
-        return dataset
+        total_image = []
+        total_domain = []
+        total_y = []
         
+        total_image.extend(image["opened"])
+        total_image.extend(image["closed"])
+        total_domain.extend(domain["opened"])
+        total_domain.extend(domain["closed"])
+                
+        for i in range(len(image["opened"])):
+            total_y.append(0.0)
+        for i in range(len(image["closed"])):
+            total_y.append(1.0)
+        
+        zip_set = list(zip(total_image, total_domain, total_y))
+        random.shuffle(zip_set)
+        total_image, total_domain, total_y = zip(*zip_set)
+        total_image = list(total_image)
+        total_domain = list(total_domain)
+        total_y = list(total_y)
+
+        if type == "test":
+            self.test_set['x'] = total_image
+            self.test_set['y'] = total_y
+            self.test_set['d'] = total_domain
+        elif type == "valid":
+            self.valid_set['x'] = total_image
+            self.valid_set['y'] = total_y
+            self.valid_set['d'] = total_domain
+        elif type == "train":
+            self.train_set['x'] = total_image
+            self.train_set['y'] = total_y
+            self.train_set['d'] = total_domain
+            
+        print("-------------------------------------")
+        print("[*] {} set : {}".format(type, len(total_y)))
+        print("[->] {} opened : {} | {} closed : {}".format(type, len(image["opened"]), type, len(image["closed"])))
+        print("-------------------------------------")
+
+
+
+    def get_data(self, dataset, training, batch_size, finetuning = False):
+        all_x = np.array(dataset['x'])
+        # if finetuning:
+        #     all_x = np.array(
+        #         list(map(
+        #             lambda x : image_normalize(x), dataset['x']
+        #         )))
+        all_y = np.array(dataset['y'], dtype=np.float32)
+        all_d = np.array(dataset['d'], dtype=np.float32)
+        
+        
+        # all_x, all_y = shuffle(all_x, all_y)
+        dataset = tf.data.Dataset.from_tensor_slices((all_x, all_y, all_d))
+        
+        if training:
+            dataset = dataset.map(lambda x, y, d: (tf.image.convert_image_dtype(_add_random_noise_each(x), dtype=tf.float32), y, d))\
+            .batch(batch_size).shuffle(buffer_size=100).prefetch(tf.data.experimental.AUTOTUNE)
+        else:
+            dataset = dataset.map(lambda x, y, d: (tf.image.convert_image_dtype(x, dtype=tf.float32), y, d)).batch(batch_size)
+        
+        return dataset
+
 
     def read_rgb_image(self, img_path, flip=False):
         assert type(self.input_size) is tuple, "size parameter must be a tuple"
@@ -211,7 +264,7 @@ class DatasetManager(object):
             print("ERROR: can't read " + img_path)
             return None
         else:
-            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
             if flip:
                 img = cv2.flip(img, 1)
@@ -223,15 +276,22 @@ class DatasetManager(object):
     '''Data API functions'''
     def get_training_data(self, batch_size):
         subject_list = self.train_set.keys()
-        return self.get_data(self.train_set, False, batch_size)
+        if self.finetune:
+            return self.get_data(self.train_set, False, batch_size, True)
+        else:
+            return self.get_data(self.train_set, True, batch_size)
     
     def get_validation_data(self, batch_size):
         subject_list = self.valid_set.keys()
-        return self.get_data(self.valid_set, False, batch_size)
+        if self.finetune:
+            return self.get_data(self.valid_set, False, batch_size, True)
+        else:
+            return self.get_data(self.valid_set, False, batch_size)
+
     
     def get_test_data(self, batch_size):
         subject_list = self.test_set.keys()
-        return self.get_data(self.test_set, False, batch_size)
-
-    def get_one_training_data(self):
-        return self.get_data(self.train_set, False, 1)
+        if self.finetune:
+            return self.get_data(self.test_set, False, batch_size, True)
+        else:
+            return self.get_data(self.test_set, False, batch_size)
