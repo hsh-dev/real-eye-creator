@@ -154,3 +154,5 @@ eye-state-classifier/without_keras_ver/outputs/
 *output
 *.vscode
 *.neptune
+
+*.out

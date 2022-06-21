@@ -23,7 +23,7 @@ if __name__ == "__main__":
     args, args_CONFIG = arg_init(CONFIG)
     neptune_callback = neptune_initialize(args, args_CONFIG)
 
-    dataset_manager = Gan_DatasetManager(args_CONFIG)
+    # dataset_manager = Gan_DatasetManager(args_CONFIG)
     dataset_manager = DatasetManager(args_CONFIG)
     
     '''

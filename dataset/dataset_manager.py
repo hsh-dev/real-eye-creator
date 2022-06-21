@@ -6,7 +6,6 @@ import random
 # from transforms import train_transform
 
 from dataset.unity_loader import Unity_Loader
-from dataset.vw_loader import Vw_Loader
 from dataset.rt_loader import Rt_Loader
 from dataset.golflab_loader import Golflab_Loader
 
@@ -22,6 +21,27 @@ train_transform = A.Compose([
                 contrast_limit=(-0.8, 0.2), brightness_by_max=True),
     A.ShiftScaleRotate(always_apply=False, p=0.5, shift_limit=(-0.1, 0.1), scale_limit=(-0.1, 0.1))
 ])
+
+# train_transform = A.Compose([
+#     A.Blur(always_apply=False, p=0.5, blur_limit=(3, 9)),
+#     A.Downscale(always_apply=False, p=0.1, scale_min=0.7,scale_max=0.99, interpolation=0),
+#     A.ElasticTransform(always_apply=False, p=0.5, alpha=0.0, sigma=0.0, alpha_affine=35.5,
+#                 interpolation=0, border_mode=0, value=(0, 0, 0), mask_value=None, approximate=False),
+#     A.HueSaturationValue(always_apply=False, p=0.5, hue_shift_limit=(-20, 20),
+#                 sat_shift_limit=(-30, 30), val_shift_limit=(-20, 20)),
+#     A.ImageCompression(always_apply=False, p=1.0, quality_lower=52,quality_upper=100, compression_type=0),
+#     A.JpegCompression(always_apply=False, p=1.0, quality_lower=49, quality_upper=100),
+#     A.MotionBlur(always_apply=False, p=1.0, blur_limit=(3, 50)),
+#     A.RGBShift(always_apply=False, p=1.0, r_shift_limit=(-10, 10),
+#                 g_shift_limit=(-10, 10), b_shift_limit=(-10, 10)),
+#     A.RandomBrightnessContrast(always_apply=False, p=1.0, brightness_limit=(-0.3, 0.3), 
+#                 contrast_limit=(-0.2, 0.2), brightness_by_max=True),
+#     A.RandomFog(always_apply=False, p=1.0, fog_coef_lower=0.0,
+#                 fog_coef_upper=0.2, alpha_coef=0.13),
+#     A.ShiftScaleRotate(always_apply=False, p=1.0, shift_limit=(-0.1, 0.1), scale_limit=(-0.1, 0.1),
+#                 rotate_limit=(-30, 30), interpolation=0, border_mode=1, value=(0, 0, 0), mask_value=None),
+#     A.ISONoise(always_apply=False, p=0.5, intensity=(0.3, 0.55), color_shift=(0.2, 0.4))
+# ])
 
 def aug_fn(image):
     data = {"image": image}
@@ -43,6 +63,11 @@ def image_normalize(image):
     
     return image_norm
 
+# def load_one_flipped_pair(l_path, r_path, size):
+#     l_img = read_rgb_image(l_path, size, flip=False)
+#     r_img = read_rgb_image(r_path, size, flip=True)
+#     return l_img, r_img
+
 
 class DatasetManager(object):
     def __init__(self, config, finetune = False, dataset_initialize = True):
@@ -51,13 +76,6 @@ class DatasetManager(object):
         '''
         self.config = config
         self.input_size = config['input_size']
-        
-        # Domain ID
-        # RT_BENE : 0
-        # Golflab : 1
-        # UnityEyes : 2
-        # 300vw : 3
-        
         
         # self.subjects = {}
         self.train_set = {}
@@ -68,8 +86,6 @@ class DatasetManager(object):
         self.is_partial = False
         self.size = None
 
-        # self.config['golflab_test_subject'] = ['1','2','3','4','5','6','7','8','9','10','11','12','13']
-        self.vw_loader = Vw_Loader(self.config)
         self.unity_loader = Unity_Loader(self.config)
         self.rt_loader = Rt_Loader(self.config)
         self.golflab_loader = Golflab_Loader(self.config)
@@ -79,22 +95,28 @@ class DatasetManager(object):
                 self.dataset_initialize()
             else:
                 self.golflab_finetuning_initialize()
-                
 
     def dataset_initialize(self):
         '''
         Initializing dataset, make train, valid, test set
         '''
-        loader_list = []
+        train_loader_list = []
         if "rt_bene" in self.config["train_dataset_list"]:
-            loader_list.append(self.rt_loader)
+            train_loader_list.append(self.rt_loader)
         if "golflab" in self.config["train_dataset_list"]:
-            loader_list.append(self.golflab_loader)
+            train_loader_list.append(self.golflab_loader)
         if "unity_eyes" in self.config["train_dataset_list"]:
-            loader_list.append(self.unity_loader)
-        if "300vw_blink" in self.config["train_dataset_list"]:
-            loader_list.append(self.vw_loader)
-        
+            train_loader_list.append(self.unity_loader)
+
+        valid_loader_list = []
+        if "rt_bene" in self.config["valid_dataset_list"]:
+            valid_loader_list.append(self.rt_loader)
+        if "golflab" in self.config["valid_dataset_list"]:
+            valid_loader_list.append(self.golflab_loader)
+        if "unity_eyes" in self.config["valid_dataset_list"]:
+            valid_loader_list.append(self.unity_loader)
+
+
         test_loader_list = []
         if "rt_bene" in self.config["test_dataset_list"]:
             test_loader_list.append(self.rt_loader)
@@ -102,29 +124,29 @@ class DatasetManager(object):
             test_loader_list.append(self.golflab_loader)
         if "unity_eyes" in  self.config["test_dataset_list"]:
             test_loader_list.append(self.unity_loader)
-        if "300vw_blink" in self.config["test_dataset_list"]:
-            test_loader_list.append(self.vw_loader)
+
         
-        image, domain = self.load_data(loader_list = loader_list, type = 'train')
+        train_image, train_domain = self.load_data(loader_list = train_loader_list, type = 'train')
+        valid_image, valid_domain = self.load_data(loader_list = valid_loader_list, type = 'valid')
         test_image, test_domain = self.load_data(loader_list = test_loader_list, type = 'test')
         
-        train_open_length = int(len(image["opened"])*0.8)
-        train_close_length = int(len(image["closed"])*0.8)
+        # train_open_length = int(len(image["opened"])*0.8)
+        # train_close_length = int(len(image["closed"])*0.8)
         
-        train_image = {}
-        valid_image = {}
-        train_domain = {}
-        valid_domain = {}
+        # train_image = {}
+        # valid_image = {}
+        # train_domain = {}
+        # valid_domain = {}
         
-        train_image["opened"] = image["opened"][:train_open_length]
-        train_domain["opened"] = domain["opened"][:train_open_length]
-        valid_image["opened"] = image["opened"][train_open_length:]
-        valid_domain["opened"] = domain["opened"][train_open_length:]
+        # train_image["opened"] = image["opened"][:train_open_length]
+        # train_domain["opened"] = domain["opened"][:train_open_length]
+        # valid_image["opened"] = image["opened"][train_open_length:]
+        # valid_domain["opened"] = domain["opened"][train_open_length:]
                 
-        train_image["closed"] = image["closed"][:train_close_length]
-        train_domain["closed"] = domain["closed"][:train_close_length]
-        valid_image["closed"] = image["closed"][train_close_length:]
-        valid_domain["closed"] = domain["closed"][train_close_length:]
+        # train_image["closed"] = image["closed"][:train_close_length]
+        # train_domain["closed"] = domain["closed"][:train_close_length]
+        # valid_image["closed"] = image["closed"][train_close_length:]
+        # valid_domain["closed"] = domain["closed"][train_close_length:]
 
         self.concatenate_data(train_image, train_domain, 'train')
         self.concatenate_data(valid_image, valid_domain, 'valid')
@@ -248,7 +270,7 @@ class DatasetManager(object):
         
         if training:
             dataset = dataset.map(lambda x, y, d: (tf.image.convert_image_dtype(_add_random_noise_each(x), dtype=tf.float32), y, d))\
-            .batch(batch_size).shuffle(buffer_size=100).prefetch(tf.data.experimental.AUTOTUNE)
+            .batch(batch_size).shuffle(512).prefetch(tf.data.experimental.AUTOTUNE)
         else:
             dataset = dataset.map(lambda x, y, d: (tf.image.convert_image_dtype(x, dtype=tf.float32), y, d)).batch(batch_size)
         

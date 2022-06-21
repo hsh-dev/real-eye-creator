@@ -9,4 +9,3 @@ class Unity_Loader(DataLoader):
         if config.get("test_unity_eyes_path") is not None:
             self.testset_path = config["test_unity_eyes_path"]
         self.input_size = config['input_size']
-

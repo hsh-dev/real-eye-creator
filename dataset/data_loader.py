@@ -3,7 +3,6 @@ import os
 import glob
 import numpy as np
 from sklearn.utils import shuffle
-from tqdm import tqdm
 from config_file.domain_map import DOMAIN_ID
 
 class DataLoader():
@@ -19,10 +18,10 @@ class DataLoader():
         uncertain_data = []
         if (type == "train" or type == "valid") and (self.dataset_path is not None):
             opened_data, closed_data, uncertain_data = self._get_data_from_path(
-            self.name, self.dataset_path, False)
+            self.name, self.dataset_path, type)
         if type == "test" and (self.testset_path is not None):
             opened_data, closed_data, uncertain_data = self._get_data_from_path(
-                self.name, self.testset_path, True)
+                self.name, self.testset_path, type)
         
         target_domain = [0]*3
         target_domain_id = DOMAIN_ID[self.name]
@@ -38,11 +37,15 @@ class DataLoader():
         return opened_data, closed_data, uncertain_data, domain_data        
         
         
-    def _get_data_from_path(self, name, dataset_path, test = False):
+    def _get_data_from_path(self, name, dataset_path, type):
         opened_path_list = []
         closed_path_list = []
         uncertain_path_list = []
         
+        test = False
+        if type == "test":
+            test = True
+
         if not self._is_data_exist(name, dataset_path):
             return np.array(opened_path_list), np.array(closed_path_list), np.array(uncertain_path_list)
         else:
@@ -52,16 +55,15 @@ class DataLoader():
             closed_path = os.path.join(dataset_path, 'closed')
             uncertain_path = os.path.join(dataset_path, 'uncertain')
             
-            ## Assume that 300vw dataset is preprocessed (normalized as left image)
-            for file in tqdm(os.listdir(opened_path)):
+            for file in os.listdir(opened_path):
                 if ('jpg' in file) or ('png' in file):
                     opened_path_list.append(os.path.join(opened_path, file))
 
-            for file in tqdm(os.listdir(closed_path)):
+            for file in os.listdir(closed_path):
                 if ('jpg' in file) or ('png' in file):  
                     closed_path_list.append(os.path.join(closed_path, file))
                     
-            for file in tqdm(os.listdir(uncertain_path)):
+            for file in os.listdir(uncertain_path):
                 if ('jpg' in file) or ('png' in file):  
                     uncertain_path_list.append(os.path.join(uncertain_path, file))
             
@@ -107,10 +109,8 @@ class DataLoader():
             return None
         else:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
             if flip:
                 img = cv2.flip(img, 1)
-        
             img = cv2.resize(img, self.input_size, cv2.INTER_CUBIC)
             return img
         
@@ -121,7 +121,7 @@ class DataLoader():
             print("check the right path..." + '\n')
             return False
 
-        if name == "300vw_blink" or name == "unity_eyes" or name == "rt_bene":
+        if name == "unity_eyes":
             opened_path = os.path.join(dataset_path, 'opened')
             closed_path = os.path.join(dataset_path, 'closed')
             uncertain_path = os.path.join(dataset_path, 'uncertain')

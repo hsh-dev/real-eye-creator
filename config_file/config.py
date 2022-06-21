@@ -1,8 +1,8 @@
 CONFIG = {
     'save_path' : './blink_output',
-    'batch_size': 256,
-    'val_batch_size' : 256,
-    'test_batch_size' : 128,
+    'batch_size': 64,
+    'val_batch_size' : 64,
+    'test_batch_size' : 64,
     'input_size' : (60, 36),
     'epochs' : 500,
     'cycle' : 4,
@@ -24,13 +24,13 @@ CONFIG = {
     'rt_bene_valid_subject' : [5, 12, 13, 14],
     'rt_bene_test_subject' : [0, 11, 15, 16],
 
-    'golflab_train_subject' : [5],
-    'golflab_valid_subject' : [3],
-    'golflab_test_subject' : [1],
+    'golflab_train_subject' : [2, 5, 6, 9, 10, 12],
+    'golflab_valid_subject' : [1, 4, 8],
+    'golflab_test_subject' : [3, 11, 13],
     
-    'train_dataset_list' : ["rt_bene"],
-    'valid_dataset_list' : ["rt_bene"],
-    'test_dataset_list' : ["rt_bene"],
+    'train_dataset_list' : ["rt_bene", "unity_eyes", "golflab"],
+    'valid_dataset_list' : ["rt_bene", "unity_eyes", "golflab"],
+    'test_dataset_list' : ["rt_bene", "unity_eyes", "golflab"],
 
     'rt_bene_resize_ratio' : 1,
     'train_rt_bene_resize' : False, 

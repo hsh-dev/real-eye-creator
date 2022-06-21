@@ -30,8 +30,11 @@ class Star_Trainer(object):
         self.domain_number = 3
         
         self.save_path = config['save_path']
+        
         self.batch_size = config['batch_size']
         self.val_batch_size = config['val_batch_size']
+        self.test_batch_size = config['test_batch_size']
+
         self.log_enabled = enable_log
         self.epochs = config['epochs']
         self.cycle = config['cycle']
@@ -62,7 +65,7 @@ class Star_Trainer(object):
     def _init_optimizer(self):
         generator_optimizer = CosineDecayWrapper(
             optimizer  = tf.keras.optimizers.Adam(
-                lr = self.initial_learning_rate, beta_1 = 0.5, beta_2 = 0.999),
+                learning_rate = self.initial_learning_rate, beta_1 = 0.5, beta_2 = 0.999),
             max_lr = self.initial_learning_rate,
             min_lr = self.min_learning_rate,
             max_epochs = self.epochs,
@@ -72,7 +75,7 @@ class Star_Trainer(object):
         
         discriminator_optimizer = CosineDecayWrapper(
             tf.keras.optimizers.Adam(
-                lr=self.initial_learning_rate, beta_1=0.99, beta_2=0.999),
+                learning_rate=self.initial_learning_rate, beta_1=0.99, beta_2=0.999),
             max_lr = self.initial_learning_rate,
             min_lr = self.min_learning_rate,
             max_epochs = self.epochs,
@@ -131,7 +134,13 @@ class Star_Trainer(object):
 
         prev_time = time.time()
 
-        dataset = self.dataset_manager.get_data(self.batch_size)
+        dataset = None
+        if phase == "train":
+            dataset = self.dataset_manager.get_training_data(self.batch_size)
+        elif phase == "val":
+            dataset = self.dataset_manager.get_validation_data(self.val_batch_size)
+        elif phase == "test":
+            dataset = self.dataset_manager.get_test_data(self.test_batch_size)        
         steps = len(dataset)
 
         total_cm = {'tn': 0, 'fp': 0, 'fn': 0, 'tp': 0}
@@ -139,7 +148,7 @@ class Star_Trainer(object):
         for step, sample in enumerate(dataset):
             self.total_step += 1
 
-            real_img, real_d, real_s = sample
+            real_img, real_s, real_d = sample
             real_s = tf.reshape(real_s, [real_s.shape[0], 1])
             
             with tf.GradientTape(persistent=True) as tape:                
@@ -205,10 +214,10 @@ class Star_Trainer(object):
                 total_cm[key] += cm_list[i]
 
             if (step+1) % 20 == 0:
-                self.save_image(real_img, fake_img, self.epoch, step)
                 self.print_step(step+1, steps, 
                                 gen_loss_tmp, 
                                 dis_loss_tmp , prev_time)
+                self.save_image(real_img, fake_img, self.epoch, step)
 
                 sys.stdout.flush()
                 prev_time = time.time()
@@ -249,34 +258,27 @@ class Star_Trainer(object):
 
     ''' Image Show '''
     def save_image(self, real_img, fake_img, epoch, step):
+
+        one_real_img = real_img[0]
+        one_fake_img = fake_img[0]
         # dataset = self.dataset_manager.get_one_training_data()
         tag = "ep_" + str(epoch) + "_step_" + str(step)
         save_image_path = os.path.join(self.save_path, "image")
         check_make_dir(save_image_path)
 
-        # generated = self.generator_g(real_x)
-
-        # for step, sample in enumerate(dataset):
-        real_img = np.squeeze(real_img.numpy(), axis = 0)*255
+        one_real_img = one_real_img.numpy()*255
+        one_real_img = cv2.cvtColor(one_real_img, cv2.COLOR_RGB2BGR)
         real_image_name = os.path.join(save_image_path, tag + "_real_sample.jpg")
-        real_img = cv2.cvtColor(real_img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(real_image_name, real_img)
+        cv2.imwrite(real_image_name, one_real_img)
         
-        fake_img = np.squeeze(fake_img.numpy(), axis=0)*255
+
+        one_fake_img = one_fake_img.numpy()*255
+        one_fake_img = cv2.cvtColor(one_fake_img, cv2.COLOR_RGB2BGR)
         fake_image_name = os.path.join(save_image_path, tag + "_fake_sample.jpg")
-        fake_img = cv2.cvtColor(fake_img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(fake_image_name, fake_img)
-
-
-        # generated = np.squeeze(generated.numpy(), axis = 0)*255
-        # generated_image_name = os.path.join(save_image_path, tag + "_generated_sample.jpg")
-        # generated = cv2.cvtColor(generated, cv2.COLOR_RGB2BGR)
-        # cv2.imwrite(generated_image_name, generated)
+        cv2.imwrite(fake_image_name, one_fake_img)
 
         self.logs["fake_image"] = fake_img
         self.logs["real_image"] = real_img
-        # self.logs["generated_image"] = generated_image_name
-
 
     ''' Save Functions '''
     def _save_model(self, epoch, best_ = None):
