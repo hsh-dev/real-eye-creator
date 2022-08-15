@@ -38,8 +38,8 @@ CONFIG = {
     'train_unity_eyes_resize' : True,
     'test_unity_eyes_resize' : True,
     
-    'neptune_project' : "vcamp/jeff-blink",
-    'neptune_api' : "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI0YzkwOTk5Zi03ZGE1LTQ2MjQtYTkxNC0wZTNiN2I1Y2M5OTkifQ==",
+    'neptune_project' : "",
+    'neptune_api' : "",
     'neptune_source_file' : ["run.py","finetuning.py","config.py","branch_run.py"
                             "trainer/*.py",
                             "dataset/*.py",
